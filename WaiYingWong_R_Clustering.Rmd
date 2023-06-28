@@ -1,0 +1,247 @@
+---
+title: "Clustering Analysis"
+author: "Wai Yong Wong"
+date: "2023-06-12" 
+Introduction:
+  
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r}
+#list of packages to install
+#pkgs_to_install <- c("tidyverse", "factoextra", "NbClust", "dendextend", "data.table", "caret")
+
+#use for loop to install packages
+#R uses for...in loop
+#for (pkg in pkgs_to_install){
+#  install.packages(pkg)
+```
+
+
+```{r}
+
+#Load the packages
+library(tidyverse)
+library(factoextra)
+library(NbClust)
+library(dendextend)
+library(data.table)
+library(caret)
+```
+
+Import the data into RStudio for analysis.
+
+```{r}
+
+#read the data
+df <- read.csv("EastWestAirlinesCluster.csv", header=TRUE, sep=",")
+#note: use tail() to view the last 6 rows of data
+head(df)
+```
+
+2. Some columns in the dataset don’t have a variety of values. To proceed with the analysis, drop the following columns: ID, cc2_miles, cc3_miles, and Award.
+
+```{r}
+#drop column: ID
+df <- df %>% select(-starts_with("ID"))
+
+#drop the following columns: cc2_miles, cc3_miles, and Award.
+df <- df %>% select(-cc2_miles, -cc3_miles, -Award.)
+head(df)
+```
+
+
+
+```{r}
+
+#we are going to use min-max scaling technique to normalize the data
+library(caret)
+proc_step <- preProcess(as.data.frame(df),
+method=c("range"))
+min_max_df <- predict(proc_step, as.data.frame(df))
+head(min_max_df)
+```
+```{r}
+fviz_pca_ind(prcomp(min_max_df), title ="PCA of EastWestAirlines Data", geom="point")
+```
+
+4. Using normalized data, determine the optimal number of clusters using both Scree plot and NbClust() approaches.
+
+#NbClust()
+
+```{r}
+#determine the optimal number of clusters using NbClust
+library(NbClust)
+library(factoextra)
+fviz_nbclust(min_max_df, kmeans,method="wss") #Elbow method (scree plot)
+fviz_nbclust(min_max_df, kmeans,method="silhouette")  #Silhoutte method
+```
+
+
+#Scree plot 
+```{r}
+#determine the optimal number of clusters using Scree plot
+set.seed(123)
+opt_clust <- NbClust(data=min_max_df, distance = "euclidean", min.nc=2,max.nc=10,method="kmeans", index="all",alphaBeale = 0.1)
+#histogram
+fviz_nbclust(opt_clust)
+```
+
+
+5. Use k-means clustering with the number of clusters that you found above in 4 above.
+
+```{r}
+#Step 2.3.2: Implement kmeans clustering using k=2 (suggested by Silhouette and Elbow)
+set.seed(999)
+km_result <- kmeans(min_max_df, centers=2)
+str(km_result) #see the structure of the result object
+```
+
+6. Validate k-means results using both cluster plot and Silhouette coefficient.
+
+#cluster plot
+
+```{r}
+#load cluster package
+library(cluster)
+clusplot(min_max_df,km_result$cluster, main="Cluster Plot of K-means Results", color=TRUE, shade=TRUE,lines=0,labels=0)
+
+```
+#Silhouette coefficient
+```{r}
+sil_res <- silhouette(km_result$cluster,dist(min_max_df,method="euclidean"))
+plot(sil_res,main="Silhoutte Plot of K-means Results", col=c("red","blue"), border=NA)
+```
+
+
+7. Generate a table to show the distribution (i.e., number) of observations/records across clusters.
+
+```{r}
+table(km_result$cluster)
+```
+8. Generate a summary table of cluster centers (i.e., cluster means) for the variables used in analysis.
+
+```{r}
+##cluster_means <- data.frame(km_result$centers)
+cluster_means <- km_result$centers
+cluster_means
+```
+
+#use the non-normalized data to generate cluster means using the aggregate function.
+
+```{r}
+km_means <- aggregate(df,list(cluster=km_result$cluster),mean)
+km_means #display the output
+```
+
+
+9. Repeat the analysis using hierarchical clustering with Euclidean distance and Ward’s method.
+
+
+HIERARCHICAL CLUSTERING
+##:Agglomerattive Approaches (hclust() or Agnes())
+##Step 1: Compute the dissimilaity matrix (use dist() function)
+```{r}
+dmatrix <- dist(min_max_df,method="euclidean")
+hclust_out <- hclust(dmatrix, method="ward.D2")
+```
+
+
+10. Plot a dendogram for hierarchical clustering results.
+```{r}
+plot(hclust_out, main="Dendogram for hclust Analysis",hang=-1,cex=0.5)
+```
+
+11. Cut the tree (i.e., dendogram) using the optimal number of clusters your determined in step 4 and generate a table to show the distribution of observations
+
+```{r}
+hclust_clust_mem <- cutree(hclust_out,k=2)
+table(hclust_clust_mem) #number of observation in each cluster
+```
+12. Again, generate a summary table of cluster centers (i.e., cluster means) for the variables used in analysis. As in step 8 above, please use the non-normalized data to generate cluster means using the aggregate function.
+
+```{r}
+hclust_means <- aggregate(df,list(cluster=hclust_clust_mem),mean)
+hclust_means #display the output
+```
+
+```{r}
+
+clusplot(min_max_df,hclust_clust_mem, main="Cluster Plot of Hclust Results", color=TRUE, shade=TRUE,lines=0,labels=0)
+
+```
+
+###6.2: Compute and plot the Silhoutte Coefficient
+Use the Silhoutte function
+```{r}
+sil_res1 <- silhouette(hclust_clust_mem,dist(min_max_df,method="euclidean"))
+plot(sil_res1,main="Silhoutte Plot of K-means Results", col=c("green","cyan"), border=NA)
+```
+
+13. Based on both kmeans and hierarchical cluster analysis and validation of cluster results, the kmeans clustering approach gives slighter better results (i.e., all silhouette coefficients are 0.65 or higher, which means stronger cluster structure) but hierarchical is slightly over 0.6.  Therefore we interpret the kmeans clustering results.
+
+14. 
+
+Analysis of Frequent Flyers for Targeted Marketing Campaign
+
+Introduction:
+This analysis aimed to identify segments of frequent flyers for targeted marketing offers. We used k-means and hierarchical clustering techniques to cluster passengers based on their mileage history and accrued/spent miles.
+
+Methodology:
+
+1. Data preprocessing: Dropped irrelevant columns, and the remaining variables were normalized using min-max scaling.
+2. Determining the optimal number of clusters: Scree plot and NbClust() approaches were used.
+K-means clustering: 2 Clusters were formed, and validation was done using cluster plots and the Silhouette coefficient.
+Hierarchical clustering: A dendrogram was created, and 2 clusters were evaluated.
+Comparison of validation results: Pick the result with higher average Silhouette coefficient. 
+Based on the higher Silhouette coefficient and slightly better separation, k-means clustering was chosen for further analysis and offer targeting.
+
+Conclusion:
+By analyzing frequent flyer data, k-means clustering proved to be the preferred technique for segmenting customers. Targeted offers can be tailored to Cluster 1, leveraging their characteristics for effective marketing campaigns.
+
+
+
+##Attach cluster membership to the original dataset and save the file to CSV
+```{r}
+df_combined <- cbind(df,km_result$cluster)
+# save file
+write.csv(df_combined, "df_combined.csv")
+```
+
+###Cluster labels (inferred)
+###Transpose the cluster means table
+```{r}
+km_means_t <- t(round(km_means,2))
+km_means_t
+
+```
+15. As you interpret the results from the analysis, please provide appropriate descriptive name/label for each cluster.
+```{r}
+colnames(km_means_t) <-c("Higher Miles Rewards Customers","Lower Miles Rewards Customers")
+km_means_t
+```
+
+
+#Interpretation of the Results:
+
+The kmeans cluster analysis was performed to identify distinct customer segments based on their travel behavior and engagement with the airline's loyalty program. Two main clusters emerged from the analysis: "Higher Miles Rewards Customers" (Cluster 1) and "Lower Miles Rewards Customers" (Cluster 2).
+
+Cluster 1 consists of customers with higher balances which is double of cluster 2, more miles earned from frequent flyer credit cards, and a significant engagement in non-flight bonus transactions. These customers have been enrolled in the loyalty program for a longer period, indicating a stronger and more established relationship with the airline. Despite having lower flight miles in the past 12 months and fewer miles qualifying for Topflight status, they demonstrate a greater propensity for earning and accumulating miles through credit card usage and bonus transactions.
+
+
+On the other hand, Cluster 2 represents customers who have lower balances, fewer miles earned from frequent flyer credit cards, and less engagement in non-flight bonus transactions. They also have a shorter average enrollment duration, indicating a relatively newer association with the loyalty program. However, these customers have a slightly higher number of miles counted as qualifying for Topflight status and have accumulated more flight miles in the past 12 months compared to Cluster 1.
+
+
+Based on this analysis, it is evident that Cluster 1, the "Higher Miles Rewards Customers," represents a more valuable segment for targeted offers. These customers exhibit a higher level of loyalty, actively engage in earning miles through credit card usage and non-flight transactions, and have a longer history with the loyalty program. By focusing promotional efforts on this segment, the airline can further incentivize their spending and enhance their overall customer experience.
+
+I would suggest for the following:
+
+1. Premium Upgrades: Offer exclusive premium class upgrades to Cluster 1 customers, providing them with a superior travel experience and highlighting the benefits of their loyalty.
+
+2. Personalized Rewards: Tailor rewards and offers to the specific preferences and interests of Cluster 1 customers such as personalized travel packages.
+
+3. Enhanced Benefits: Enhance the benefits and privileges associated with the loyalty program for Cluster 1 customers, such as priority check-in, access to airport lounges, or preferential treatment during flight disruptions.
+
